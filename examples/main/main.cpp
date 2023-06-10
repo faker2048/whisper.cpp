@@ -187,7 +187,15 @@ struct whisper_print_user_data {
 
     const std::vector<std::vector<float>> * pcmf32s;
 };
-
+// 这段代码看起来像是在处理并打印语音识别（ASR）或语音转录系统的输出结果。具体的功能包括：
+// 1. **时间戳打印**: 如果`params.no_timestamps`为`false`，那么代码会打印出每个音频片段的起止时间。
+// 2. **说话人分离**: 如果`params.diarize`为`true`，那么代码会对每个音频片段进行能量计算，
+//    以确定哪个说话人（或麦克风）的能量更大。然后根据能量大小将其标记为 "speaker 0"，"speaker 1"，或是在两者能量相近时标记为 "speaker ?"。
+// 3. **音频片段打印**: 对于每个音频片段，如果`params.print_colors`为`true`，则根据每个令牌（可能是词或词组）的概率`p`给其打上不同的颜色，
+//    然后打印出来。如果`params.print_colors`为`false`，则直接打印每个音频片段的文本。
+// 4. **刷新输出**: 每个音频片段处理完毕后，会刷新标准输出，即立即将处理结果打印到控制台，而不是等待缓冲区满了再打印。
+//    请注意，代码中使用了一个名为`whisper`的库（可能是一个语音识别或语音处理库），但是我没有找到相关的具体信息，
+//    所以只能根据代码的逻辑和函数名称进行猜测。
 void whisper_print_segment_callback(struct whisper_context * ctx, struct whisper_state * /*state*/, int n_new, void * user_data) {
     const auto & params  = *((whisper_print_user_data *) user_data)->params;
     const auto & pcmf32s = *((whisper_print_user_data *) user_data)->pcmf32s;
