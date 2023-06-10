@@ -70,13 +70,7 @@ struct whisper_params {
     bool diarize        = false;
     bool split_on_word  = false;
     bool no_fallback    = false;
-    bool output_txt     = false;
-    bool output_vtt     = false;
     bool output_srt     = false;
-    bool output_wts     = false;
-    bool output_csv     = false;
-    bool output_jsn     = false;
-    bool output_lrc     = false;
     bool print_special  = false;
     bool print_colors   = false;
     bool print_progress = false;
@@ -128,14 +122,8 @@ bool whisper_params_parse(int argc, char ** argv, whisper_params & params) {
         else if (arg == "-di"   || arg == "--diarize")        { params.diarize        = true; }
         else if (arg == "-sow"  || arg == "--split-on-word")  { params.split_on_word  = true; }
         else if (arg == "-nf"   || arg == "--no-fallback")    { params.no_fallback    = true; }
-        else if (arg == "-otxt" || arg == "--output-txt")     { params.output_txt     = true; }
-        else if (arg == "-ovtt" || arg == "--output-vtt")     { params.output_vtt     = true; }
         else if (arg == "-osrt" || arg == "--output-srt")     { params.output_srt     = true; }
-        else if (arg == "-owts" || arg == "--output-words")   { params.output_wts     = true; }
-        else if (arg == "-olrc" || arg == "--output-lrc")     { params.output_lrc     = true; }
         else if (arg == "-fp"   || arg == "--font-path")      { params.font_path      = argv[++i]; }
-        else if (arg == "-ocsv" || arg == "--output-csv")     { params.output_csv     = true; }
-        else if (arg == "-oj"   || arg == "--output-json")    { params.output_jsn     = true; }
         else if (arg == "-of"   || arg == "--output-file")    { params.fname_out.emplace_back(argv[++i]); }
         else if (arg == "-ps"   || arg == "--print-special")  { params.print_special  = true; }
         else if (arg == "-pc"   || arg == "--print-colors")   { params.print_colors   = true; }
@@ -179,14 +167,8 @@ void whisper_print_usage(int /*argc*/, char ** argv, const whisper_params & para
     fprintf(stderr, "  -tr,       --translate         [%-7s] translate from source language to english\n",      params.translate ? "true" : "false");
     fprintf(stderr, "  -di,       --diarize           [%-7s] stereo audio diarization\n",                       params.diarize ? "true" : "false");
     fprintf(stderr, "  -nf,       --no-fallback       [%-7s] do not use temperature fallback while decoding\n", params.no_fallback ? "true" : "false");
-    fprintf(stderr, "  -otxt,     --output-txt        [%-7s] output result in a text file\n",                   params.output_txt ? "true" : "false");
-    fprintf(stderr, "  -ovtt,     --output-vtt        [%-7s] output result in a vtt file\n",                    params.output_vtt ? "true" : "false");
     fprintf(stderr, "  -osrt,     --output-srt        [%-7s] output result in a srt file\n",                    params.output_srt ? "true" : "false");
-    fprintf(stderr, "  -olrc,     --output-lrc        [%-7s] output result in a lrc file\n",                    params.output_lrc ? "true" : "false");
-    fprintf(stderr, "  -owts,     --output-words      [%-7s] output script for generating karaoke video\n",     params.output_wts ? "true" : "false");
     fprintf(stderr, "  -fp,       --font-path         [%-7s] path to a monospace font for karaoke video\n",     params.font_path.c_str());
-    fprintf(stderr, "  -ocsv,     --output-csv        [%-7s] output result in a CSV file\n",                    params.output_csv ? "true" : "false");
-    fprintf(stderr, "  -oj,       --output-json       [%-7s] output result in a JSON file\n",                   params.output_jsn ? "true" : "false");
     fprintf(stderr, "  -of FNAME, --output-file FNAME [%-7s] output file path (without file extension)\n",      "");
     fprintf(stderr, "  -ps,       --print-special     [%-7s] print special tokens\n",                           params.print_special ? "true" : "false");
     fprintf(stderr, "  -pc,       --print-colors      [%-7s] print colors\n",                                   params.print_colors ? "true" : "false");
@@ -290,47 +272,6 @@ void whisper_print_segment_callback(struct whisper_context * ctx, struct whisper
     }
 }
 
-bool output_txt(struct whisper_context * ctx, const char * fname) {
-    std::ofstream fout(fname);
-    if (!fout.is_open()) {
-        fprintf(stderr, "%s: failed to open '%s' for writing\n", __func__, fname);
-        return false;
-    }
-
-    fprintf(stderr, "%s: saving output to '%s'\n", __func__, fname);
-
-    const int n_segments = whisper_full_n_segments(ctx);
-    for (int i = 0; i < n_segments; ++i) {
-        const char * text = whisper_full_get_segment_text(ctx, i);
-        fout << text << "\n";
-    }
-
-    return true;
-}
-
-bool output_vtt(struct whisper_context * ctx, const char * fname) {
-    std::ofstream fout(fname);
-    if (!fout.is_open()) {
-        fprintf(stderr, "%s: failed to open '%s' for writing\n", __func__, fname);
-        return false;
-    }
-
-    fprintf(stderr, "%s: saving output to '%s'\n", __func__, fname);
-
-    fout << "WEBVTT\n\n";
-
-    const int n_segments = whisper_full_n_segments(ctx);
-    for (int i = 0; i < n_segments; ++i) {
-        const char * text = whisper_full_get_segment_text(ctx, i);
-        const int64_t t0 = whisper_full_get_segment_t0(ctx, i);
-        const int64_t t1 = whisper_full_get_segment_t1(ctx, i);
-
-        fout << to_timestamp(t0) << " --> " << to_timestamp(t1) << "\n";
-        fout << text << "\n\n";
-    }
-
-    return true;
-}
 
 bool output_srt(struct whisper_context * ctx, const char * fname, const whisper_params & params) {
     std::ofstream fout(fname);
@@ -386,304 +327,7 @@ char *escape_double_quotes_and_backslashes(const char *str) {
     return escaped;
 }
 
-bool output_csv(struct whisper_context * ctx, const char * fname) {
-    std::ofstream fout(fname);
-    if (!fout.is_open()) {
-        fprintf(stderr, "%s: failed to open '%s' for writing\n", __func__, fname);
-        return false;
-    }
 
-    fprintf(stderr, "%s: saving output to '%s'\n", __func__, fname);
-
-    const int n_segments = whisper_full_n_segments(ctx);
-    fout << "start,end,text\n";
-    for (int i = 0; i < n_segments; ++i) {
-        const char * text = whisper_full_get_segment_text(ctx, i);
-        const int64_t t0 = whisper_full_get_segment_t0(ctx, i);
-        const int64_t t1 = whisper_full_get_segment_t1(ctx, i);
-        char * text_escaped = escape_double_quotes_and_backslashes(text);
-
-        //need to multiply times returned from whisper_full_get_segment_t{0,1}() by 10 to get milliseconds.
-        fout << 10 * t0 << "," << 10 * t1 << ",\"" << text_escaped    << "\"\n";
-    }
-
-    return true;
-}
-
-bool output_json(struct whisper_context * ctx, const char * fname, const whisper_params & params) {
-    std::ofstream fout(fname);
-    int indent = 0;
-
-    auto doindent = [&]() {
-        for (int i = 0; i < indent; i++) fout << "\t";
-    };
-
-    auto start_arr = [&](const char *name) {
-        doindent();
-        fout << "\"" << name << "\": [\n";
-        indent++;
-    };
-
-    auto end_arr = [&](bool end = false) {
-        indent--;
-        doindent();
-        fout << (end ? "]\n" : "},\n");
-    };
-
-    auto start_obj = [&](const char *name = nullptr) {
-        doindent();
-        if (name) {
-            fout << "\"" << name << "\": {\n";
-        } else {
-            fout << "{\n";
-        }
-        indent++;
-    };
-
-    auto end_obj = [&](bool end = false) {
-        indent--;
-        doindent();
-        fout << (end ? "}\n" : "},\n");
-    };
-
-    auto start_value = [&](const char *name) {
-        doindent();
-        fout << "\"" << name << "\": ";
-    };
-
-    auto value_s = [&](const char *name, const char *val, bool end = false) {
-        start_value(name);
-        char * val_escaped = escape_double_quotes_and_backslashes(val);
-        fout << "\"" << val_escaped << (end ? "\"\n" : "\",\n");
-        free(val_escaped);
-    };
-
-    auto end_value = [&](bool end = false) {
-        fout << (end ? "\n" : ",\n");
-    };
-
-    auto value_i = [&](const char *name, const int64_t val, bool end = false) {
-        start_value(name);
-        fout << val;
-        end_value(end);
-    };
-
-    auto value_b = [&](const char *name, const bool val, bool end = false) {
-        start_value(name);
-        fout << (val ? "true" : "false");
-        end_value(end);
-    };
-
-    if (!fout.is_open()) {
-        fprintf(stderr, "%s: failed to open '%s' for writing\n", __func__, fname);
-        return false;
-    }
-
-    fprintf(stderr, "%s: saving output to '%s'\n", __func__, fname);
-    start_obj();
-        value_s("systeminfo", whisper_print_system_info());
-        start_obj("model");
-            value_s("type", whisper_model_type_readable(ctx));
-            value_b("multilingual", whisper_is_multilingual(ctx));
-            value_i("vocab", whisper_model_n_vocab(ctx));
-            start_obj("audio");
-                value_i("ctx", whisper_model_n_audio_ctx(ctx));
-                value_i("state", whisper_model_n_audio_state(ctx));
-                value_i("head", whisper_model_n_audio_head(ctx));
-                value_i("layer", whisper_model_n_audio_layer(ctx), true);
-            end_obj();
-            start_obj("text");
-                value_i("ctx", whisper_model_n_text_ctx(ctx));
-                value_i("state", whisper_model_n_text_state(ctx));
-                value_i("head", whisper_model_n_text_head(ctx));
-                value_i("layer", whisper_model_n_text_layer(ctx), true);
-            end_obj();
-            value_i("mels", whisper_model_n_mels(ctx));
-            value_i("ftype", whisper_model_ftype(ctx), true);
-        end_obj();
-        start_obj("params");
-            value_s("model", params.model.c_str());
-            value_s("language", params.language.c_str());
-            value_b("translate", params.translate, true);
-        end_obj();
-        start_obj("result");
-            value_s("language", whisper_lang_str(whisper_full_lang_id(ctx)), true);
-        end_obj();
-        start_arr("transcription");
-
-            const int n_segments = whisper_full_n_segments(ctx);
-            for (int i = 0; i < n_segments; ++i) {
-                const char * text = whisper_full_get_segment_text(ctx, i);
-                const int64_t t0 = whisper_full_get_segment_t0(ctx, i);
-                const int64_t t1 = whisper_full_get_segment_t1(ctx, i);
-
-                start_obj();
-                    start_obj("timestamps");
-                        value_s("from", to_timestamp(t0, true).c_str());
-                        value_s("to", to_timestamp(t1, true).c_str(), true);
-                    end_obj();
-                    start_obj("offsets");
-                        value_i("from", t0 * 10);
-                        value_i("to", t1 * 10, true);
-                    end_obj();
-                    value_s("text", text, true);
-                end_obj(i == (n_segments - 1));
-            }
-
-        end_arr(true);
-    end_obj(true);
-    return true;
-}
-
-// karaoke video generation
-// outputs a bash script that uses ffmpeg to generate a video with the subtitles
-// TODO: font parameter adjustments
-bool output_wts(struct whisper_context * ctx, const char * fname, const char * fname_inp, const whisper_params & params, float t_sec) {
-    std::ofstream fout(fname);
-
-    fprintf(stderr, "%s: saving output to '%s'\n", __func__, fname);
-
-    static const char * font = params.font_path.c_str();
-
-    std::ifstream fin(font);
-    if (!fin.is_open()) {
-        fprintf(stderr, "%s: font not found at '%s', please specify a monospace font with -fp\n", __func__, font);
-        return false;
-    }
-
-    fout << "#!/bin/bash" << "\n";
-    fout << "\n";
-
-    fout << "ffmpeg -i " << fname_inp << " -f lavfi -i color=size=1200x120:duration=" << t_sec << ":rate=25:color=black -vf \"";
-
-    for (int i = 0; i < whisper_full_n_segments(ctx); i++) {
-        const int64_t t0 = whisper_full_get_segment_t0(ctx, i);
-        const int64_t t1 = whisper_full_get_segment_t1(ctx, i);
-
-        const int n = whisper_full_n_tokens(ctx, i);
-
-        std::vector<whisper_token_data> tokens(n);
-        for (int j = 0; j < n; ++j) {
-            tokens[j] = whisper_full_get_token_data(ctx, i, j);
-        }
-
-        if (i > 0) {
-            fout << ",";
-        }
-
-        // background text
-        fout << "drawtext=fontfile='" << font << "':fontsize=24:fontcolor=gray:x=(w-text_w)/2:y=h/2:text='':enable='between(t," << t0/100.0 << "," << t0/100.0 << ")'";
-
-        bool is_first = true;
-
-        for (int j = 0; j < n; ++j) {
-            const auto & token = tokens[j];
-
-            if (tokens[j].id >= whisper_token_eot(ctx)) {
-                continue;
-            }
-
-            std::string txt_bg;
-            std::string txt_fg; // highlight token
-            std::string txt_ul; // underline
-
-            txt_bg = "> ";
-            txt_fg = "> ";
-            txt_ul = "\\ \\ ";
-
-            {
-                for (int k = 0; k < n; ++k) {
-                    const auto & token2 = tokens[k];
-
-                    if (tokens[k].id >= whisper_token_eot(ctx)) {
-                        continue;
-                    }
-
-                    const std::string txt = whisper_token_to_str(ctx, token2.id);
-
-                    txt_bg += txt;
-
-                    if (k == j) {
-                        for (int l = 0; l < (int) txt.size(); ++l) {
-                            txt_fg += txt[l];
-                            txt_ul += "_";
-                        }
-                        txt_fg += "|";
-                    } else {
-                        for (int l = 0; l < (int) txt.size(); ++l) {
-                            txt_fg += "\\ ";
-                            txt_ul += "\\ ";
-                        }
-                    }
-                }
-
-                ::replace_all(txt_bg, "'", "\u2019");
-                ::replace_all(txt_bg, "\"", "\\\"");
-                ::replace_all(txt_fg, "'", "\u2019");
-                ::replace_all(txt_fg, "\"", "\\\"");
-            }
-
-            if (is_first) {
-                // background text
-                fout << ",drawtext=fontfile='" << font << "':fontsize=24:fontcolor=gray:x=(w-text_w)/2:y=h/2:text='" << txt_bg << "':enable='between(t," << t0/100.0 << "," << t1/100.0 << ")'";
-                is_first = false;
-            }
-
-            // foreground text
-            fout << ",drawtext=fontfile='" << font << "':fontsize=24:fontcolor=lightgreen:x=(w-text_w)/2+8:y=h/2:text='" << txt_fg << "':enable='between(t," << token.t0/100.0 << "," << token.t1/100.0 << ")'";
-
-            // underline
-            fout << ",drawtext=fontfile='" << font << "':fontsize=24:fontcolor=lightgreen:x=(w-text_w)/2+8:y=h/2+16:text='" << txt_ul << "':enable='between(t," << token.t0/100.0 << "," << token.t1/100.0 << ")'";
-        }
-    }
-
-    fout << "\" -c:v libx264 -pix_fmt yuv420p -y " << fname_inp << ".mp4" << "\n";
-
-    fout << "\n\n";
-    fout << "echo \"Your video has been saved to " << fname_inp << ".mp4\"" << "\n";
-    fout << "\n";
-    fout << "echo \"  ffplay " << fname_inp << ".mp4\"\n";
-    fout << "\n";
-
-    fout.close();
-
-    fprintf(stderr, "%s: run 'source %s' to generate karaoke video\n", __func__, fname);
-
-    return true;
-}
-
-bool output_lrc(struct whisper_context * ctx, const char * fname) {
-
-    std::ofstream fout(fname);
-    if (!fout.is_open()) {
-        fprintf(stderr, "%s: failed to open '%s' for writing\n", __func__, fname);
-        return false;
-    }
-
-    fprintf(stderr, "%s: saving output to '%s'\n", __func__, fname);
-
-    fout << "[by:whisper.cpp]\n";
-
-    const int n_segments = whisper_full_n_segments(ctx);
-    for (int i = 0; i < n_segments; ++i) {
-        const char * text = whisper_full_get_segment_text(ctx, i);
-        const int64_t t = whisper_full_get_segment_t0(ctx, i);
-
-        int64_t msec = t * 10;
-        int64_t min = msec / (1000 * 60);
-        msec = msec - min * (1000 * 60);
-        int64_t sec = msec / 1000;
-        msec = msec - sec * 1000;
-
-        char buf[16];
-        snprintf(buf, sizeof(buf), "%02d:%02d.%02d", (int) min, (int) sec, (int) ( msec / 10));
-        std::string timestamp_lrc = std::string(buf);
-
-        fout <<  '[' << timestamp_lrc << ']' << text << "\n";
-    }
-
-    return true;
-}
 
 int main(int argc, char ** argv) {
     whisper_params params;
@@ -773,9 +417,9 @@ int main(int argc, char ** argv) {
             wparams.offset_ms        = params.offset_t_ms;
             wparams.duration_ms      = params.duration_ms;
 
-            wparams.token_timestamps = params.output_wts || params.max_len > 0;
+            wparams.token_timestamps = /* params.output_wts */ false || params.max_len > 0;
             wparams.thold_pt         = params.word_thold;
-            wparams.max_len          = params.output_wts && params.max_len == 0 ? 60 : params.max_len;
+            wparams.max_len          = /* params.output_wts */ false && params.max_len == 0 ? 60 : params.max_len;
             wparams.split_on_word    = params.split_on_word;
 
             wparams.speed_up         = params.speed_up;
@@ -818,49 +462,12 @@ int main(int argc, char ** argv) {
 
         // output stuff
         {
-            printf("\n");
-
-            // output to text file
-            if (params.output_txt) {
-                const auto fname_txt = fname_out + ".txt";
-                output_txt(ctx, fname_txt.c_str());
-            }
-
-            // output to VTT file
-            if (params.output_vtt) {
-                const auto fname_vtt = fname_out + ".vtt";
-                output_vtt(ctx, fname_vtt.c_str());
-            }
-
             // output to SRT file
             if (params.output_srt) {
                 const auto fname_srt = fname_out + ".srt";
                 output_srt(ctx, fname_srt.c_str(), params);
             }
 
-            // output to WTS file
-            if (params.output_wts) {
-                const auto fname_wts = fname_out + ".wts";
-                output_wts(ctx, fname_wts.c_str(), fname_inp.c_str(), params, float(pcmf32.size() + 1000)/WHISPER_SAMPLE_RATE);
-            }
-
-            // output to CSV file
-            if (params.output_csv) {
-                const auto fname_csv = fname_out + ".csv";
-                output_csv(ctx, fname_csv.c_str());
-            }
-
-            // output to JSON file
-            if (params.output_jsn) {
-                const auto fname_jsn = fname_out + ".json";
-                output_json(ctx, fname_jsn.c_str(), params);
-            }
-
-            // output to LRC file
-            if (params.output_lrc) {
-                const auto fname_lrc = fname_out + ".lrc";
-                output_lrc(ctx, fname_lrc.c_str());
-            }
         }
     }
 
